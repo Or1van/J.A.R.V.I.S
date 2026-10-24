@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 EVENT_HANDLERS: dict[str, list[Callable[[dict], None]]] = defaultdict(list)
 
 _assistant: "Assistant | None" = None
+# Що робити на "ще" / "більше": навички (новини, ідеї) ставлять сюди функцію продовження списку.
+more: Callable[[], str] | None = None
 
 
 def bind(assistant: "Assistant") -> None:

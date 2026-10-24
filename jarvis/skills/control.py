@@ -1,10 +1,26 @@
-"""Керування самим Джарвісом: нова розмова, довідка, повтор, вихід."""
+"""Керування самим Джарвісом: швидкість мовлення, "ще", нова розмова, довідка, повтор, вихід."""
 from jarvis.core import runtime
-from jarvis.core.registry import command, tool
+from jarvis.core.registry import NotHandled, command, tool
 
-HELP = ("Я вмію відкривати й закривати програми та вікна, керувати звуком і музикою, шукати в інтернеті, "
-        "відкривати папки й проєкти, показувати стан комп'ютера і відкривати Claude Code. "
-        "Наприклад: Джарвіс, відкрий Claude Code.")
+HELP = ("Я вмію відкривати й закривати програми та вікна, керувати звуком, музикою й відео, шукати в інтернеті, "
+        "розповідати новини, пропонувати ідеї для проєктів, записувати цілі й нотатки, працювати з Telegram, "
+        "відкривати проєкти, Claude Code і чат Claude. Наприклад: Джарвіс, новини.")
+
+
+@command(r"(?:говори|розмовляй) (?P<how>швидше|повільніше)(?: будь ласка)?|(?P<how2>швидше|повільніше) говори", priority=8)
+def _speech_speed(how=None, how2=None):
+    settings = runtime.settings()
+    step = 15 if (how or how2) == "швидше" else -15
+    settings.speech_speed = max(-40, min(80, settings.speech_speed + step))
+    settings.save()
+    return "Так краще?"
+
+
+@command(r"ще|більше|ще трохи|наступні|інші|ще варіанти|ще ідеї|ще новини|далі новини", priority=6)
+def _more():
+    if runtime.more is None:  # "ще" має сенс лише після новин, ідей тощо
+        raise NotHandled
+    return runtime.more()
 
 
 @tool

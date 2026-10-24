@@ -50,7 +50,7 @@ SPOKEN_SITES = {
 }
 YOUTUBE = r"(?:ютубі|ютуб|youtube)"
 DOMAIN = re.compile(r"[\w-]+(?:\.[\w-]+)+", re.I)
-TAB = r"вкладк\w*"
+TAB = r"(?:вкладк\w*|сторінк\w*)"  # "наступна сторінка" = наступна вкладка
 # Куди "написати" в браузері: "напиши в гуглі ...", "введи в адресний рядок ..."
 ADDRESS_BAR = r"(?:гугл\w*|google|пошук\w*|адресн\w* рядок\w*|рядок\w*|браузер\w*|хром\w*|chrome)"
 
@@ -338,7 +338,7 @@ def _reopen_tab():
     return _browser_keys("ctrl", "shift", "t")
 
 
-@command(rf"наступна {TAB}", priority=4)
+@command(rf"наступна {TAB}|(?:переключи|перемкни|зміни|гортай) (?:вкладку|сторінку)", priority=4)
 def _next_tab():
     return _browser_keys("ctrl", "tab")
 
@@ -373,24 +373,100 @@ def _reload():
     hotkey("f5")
 
 
-@command(r"(?:прокрути|гортай|покрути|скрол\w*)(?: сторінку)?(?: вниз| донизу)?(?: ще)?", priority=4)
+SCROLL = r"(?:прокрути\w*|гортай|покрути|скрол\w*|листай|спусти\w*|опусти\w*|підніми\w*|підійми\w*|йди|перейди)"
+
+
+@command(
+    rf"{SCROLL}(?: сторінку)?(?: ще)?(?: трохи)?(?: нижче| вниз| донизу)?(?: ще)?",
+    r"(?:ще )?(?:трохи )?нижче",
+    priority=4,
+)
 def _scroll_down():
     hotkey("pagedown")
 
 
-@command(r"(?:прокрути|гортай|покрути|скрол\w*)(?: сторінку)? (?:вгору|догори)(?: ще)?", priority=4)
+@command(
+    rf"{SCROLL}(?: сторінку)?(?: ще)?(?: трохи)? (?:вгору|догори|вище|нагору)(?: ще)?",
+    r"(?:підніми\w*|підійми\w*)(?: сторінку)?(?: ще)?(?: трохи)?",
+    r"(?:ще )?(?:трохи )?вище",
+    priority=4,
+)
 def _scroll_up():
     hotkey("pageup")
 
 
-@command(r"на початок(?: сторінки)?|(?:прокрути|гортай) на початок", priority=4)
+@command(
+    rf"(?:{SCROLL} )?(?:в |у |на |до )?(?:самий |самого )?(?:верх\w*|поч\w*|вгору|догори) сторінки",
+    rf"(?:{SCROLL} )?(?:на початок|на самий верх|до самого верху|на самий початок)",
+    priority=4,
+)
 def _top():
     hotkey("home")
 
 
-@command(r"в кінець(?: сторінки)?|(?:прокрути|гортай) в кінець", priority=4)
+@command(
+    rf"(?:{SCROLL} )?(?:в |у |на |до )?(?:самий |самого )?(?:низ\w*|кін\w*|вниз|донизу) сторінки",
+    rf"(?:{SCROLL} )?(?:в кінець|на самий низ|до самого низу|до кінця|в самий низ)",
+    priority=4,
+)
 def _bottom():
     hotkey("end")
+
+
+# ---------- відео на сайті (YouTube — його гарячими клавішами, інші сайти — медіаклавішами) ----------
+
+VIDEO = r"(?:відео|ролик\w*|кліп\w*)"
+
+
+def _video(youtube_keys: tuple, other_keys: tuple | None = None):
+    if not focus_browser():
+        return "Браузер не відкритий."
+    if "youtube" in user_window().title.lower():
+        press(*youtube_keys)
+    elif other_keys:
+        press(*other_keys)
+    else:
+        return "Це вмію лише на YouTube."
+
+
+@command(
+    rf"(?:запусти|увімкни|включи|постав|продовж\w*|відтвори|грай) {VIDEO}",
+    rf"(?:зупини|призупини|пауза|постав на паузу) {VIDEO}|(?:постав )?{VIDEO} на паузу|пауза на {VIDEO}",
+    priority=5,
+)
+def _video_play_pause():
+    if not focus_browser():
+        return "Браузер не відкритий."
+    if "youtube" in user_window().title.lower():
+        press("k")
+    else:
+        from jarvis.core.desktop import press_vk
+        press_vk(0xB3)  # медіаклавіша "відтворити/пауза" — Chrome передає її відео на сторінці
+
+
+@command(rf"(?:перемотай|промотай|мотай) (?:{VIDEO} )?вперед", rf"(?:перемотай|промотай|мотай) (?:{VIDEO} )?далі", priority=5)
+def _video_forward():
+    return _video(("l",), ("right",))
+
+
+@command(rf"(?:перемотай|промотай|мотай) (?:{VIDEO} )?назад", priority=5)
+def _video_back():
+    return _video(("j",), ("left",))
+
+
+@command(rf"{VIDEO} на весь екран|розгорни {VIDEO}|(?:вийди з|згорни) (?:повноекранного )?{VIDEO}", priority=5)
+def _video_fullscreen():
+    return _video(("f",))
+
+
+@command(rf"(?:вимкни|увімкни) (?:звук (?:на |у )?{VIDEO}|{VIDEO} без звуку)", priority=5)
+def _video_mute():
+    return _video(("m",))
+
+
+@command(r"(?:увімкни|вимкни|включи) субтитри", priority=5)
+def _video_subtitles():
+    return _video(("c",))
 
 
 @command(r"(?:збільш|наблиз)\w*(?: масштаб| сторінку| текст)?", priority=4)

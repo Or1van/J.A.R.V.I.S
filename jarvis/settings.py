@@ -38,7 +38,8 @@ class Settings:
     # Голос: auto (онлайн — edge, офлайн — piper) | edge | piper
     tts_engine: str = "auto"
     edge_voice: str = "uk-UA-OstapNeural"
-    edge_rate: str = "+0%"
+    # Швидкість мовлення у відсотках відносно звичайної: 0 — звичайна, 25 — на чверть швидше, -20 — повільніше.
+    speech_speed: int = 25
     # Диктор офлайн-голосу: 0 — Лада, 1 — Микита, 2 — Тетяна.
     piper_speaker: int = 1
 

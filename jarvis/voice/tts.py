@@ -57,7 +57,8 @@ class Mouth:
         if engine == "edge" or (engine == "auto" and is_online()):
             path = _temp_file(".mp3")
             try:
-                communicate = edge_tts.Communicate(text, self.settings.edge_voice, rate=self.settings.edge_rate)
+                rate = f"{self.settings.speech_speed:+d}%"
+                communicate = edge_tts.Communicate(text, self.settings.edge_voice, rate=rate)
                 asyncio.run(communicate.save(path))
                 return path
             except Exception as e:
@@ -72,7 +73,11 @@ class Mouth:
             self._piper = PiperVoice.load(str(PIPER_MODEL))
         path = _temp_file(".wav")
         with wave.open(path, "wb") as wav:
-            self._piper.synthesize_wav(text, wav, syn_config=SynthesisConfig(speaker_id=self.settings.piper_speaker))
+            config = SynthesisConfig(
+                speaker_id=self.settings.piper_speaker,
+                length_scale=1 / (1 + self.settings.speech_speed / 100),  # менше — швидше
+            )
+            self._piper.synthesize_wav(text, wav, syn_config=config)
         return path
 
 
