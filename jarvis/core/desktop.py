@@ -123,11 +123,13 @@ def find_window(title_part: str):
 
 
 def find_window_by_process(process: str):
-    """Головне вікно програми за назвою процесу, напр. "telegram.exe"."""
-    for win in pygetwindow.getAllWindows():
-        if win.title.strip() and window_process(win._hWnd) == process:
-            return win
-    return None
+    """Головне вікно програми за назвою процесу, напр. "telegram.exe".
+    Беремо найбільше видиме: у багатьох програм є приховані службові вікна з заголовками."""
+    candidates = [
+        w for w in pygetwindow.getAllWindows()
+        if w.title.strip() and _user32.IsWindowVisible(w._hWnd) and window_process(w._hWnd) == process
+    ]
+    return max(candidates, key=lambda w: w.width * w.height, default=None)
 
 
 def bring_to_front(win) -> bool:

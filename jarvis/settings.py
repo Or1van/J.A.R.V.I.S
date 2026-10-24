@@ -22,6 +22,8 @@ class Settings:
 
     # Браузер для сайтів і пошуку: chrome | default (браузер Windows за замовчуванням) | повний шлях до .exe
     browser: str = "chrome"
+    # Пошуковик: google | duckduckgo. Порожньо — Джарвіс спитає при першому відкритті інтернету.
+    search_engine: str = ""
 
     wake_words: list[str] = field(default_factory=lambda: [
         "джарвіс", "джарвис", "джервіс", "джервис", "jarvis", "жарвіс", "чарвіс",

@@ -117,7 +117,9 @@ def _already_running(port: int) -> bool:
             if resp.read() != b"jarvis ok":
                 return False
         body = json.dumps({"type": "jarvis.show"}).encode()
-        urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{port}/event", data=body), timeout=1).close()
+        request = urllib.request.Request(f"http://127.0.0.1:{port}/event", data=body,
+                                         headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(request, timeout=1).close()
         return True
     except OSError:
         return False

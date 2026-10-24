@@ -28,8 +28,12 @@ SYSTEM_APPS = {
 SPOKEN_NAMES = {
     "хром": "google chrome", "гугл хром": "google chrome", "телеграм": "telegram", "стім": "steam",
     "діскорд": "discord", "дискорд": "discord", "спотіфай": "spotify", "ворд": "word",
-    "ексель": "excel", "павер поінт": "powerpoint", "віс код": "visual studio code",
-    "вс код": "visual studio code", "візуал студіо код": "visual studio code", "фотошоп": "photoshop",
+    "ексель": "excel", "павер поінт": "powerpoint", "фотошоп": "photoshop",
+    **dict.fromkeys([
+        "vs code", "vscode", "vs код", "віс код", "вс код", "в с код", "ві ес код", "візуал студіо код",
+        "візуал студіо", "visual studio", "vs", "код", "code",
+    ], "visual studio code"),
+    "клод десктоп": "claude", "claude desktop": "claude",
     "опера": "opera", "файрфокс": "firefox", "едж": "microsoft edge", "вайбер": "viber",
     "зум": "zoom", "обс": "obs studio", "епік геймс": "epic games launcher",
 }

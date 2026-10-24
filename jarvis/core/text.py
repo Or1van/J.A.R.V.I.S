@@ -6,6 +6,7 @@ _APOSTROPHES = str.maketrans({"’": "'", "ʼ": "'", "`": "'", "´": "'"})
 # Слова, які не змінюють суть команди: "відкрий мені, будь ласка, браузер" = "відкрий браузер".
 _FILLERS = re.compile(r"\b(?:будь ласка|будь-ласка|пожалуйста|мені|нам|ну|будь)\b")
 
+GREETINGS = {"привіт", "ей", "гей", "ок", "окей", "слухай", "hey", "ok", "а", "ну"}
 YES_WORDS = {"так", "да", "підтверджую", "звісно", "ага", "yes", "виконуй", "дозволяю", "давай", "відправляй"}
 NO_WORDS = {"ні", "нет", "не", "no", "скасуй", "відміна", "стоп"}
 
@@ -19,7 +20,9 @@ def normalize(text: str) -> str:
 
 
 def split_wake_word(raw: str, wake_words: list[str]) -> tuple[bool, str]:
-    """Шукає слово-активатор. Повертає (чи було воно, текст після нього)."""
+    """Шукає слово-активатор. Повертає (чи було воно, команда без звертання).
+    Звертання на початку ("Джарвіс, ...", "Привіт, Джарвіс, ...") відрізається;
+    якщо ім'я всередині команди ("закрий Джарвіса") — текст лишається як є."""
     lower = raw.lower().translate(_APOSTROPHES)
     best = None
     for word in wake_words:
@@ -28,6 +31,9 @@ def split_wake_word(raw: str, wake_words: list[str]) -> tuple[bool, str]:
             best = m
     if best is None:
         return False, raw
+    before = re.sub(r"[^\w\s']", " ", lower[:best.start()]).split()
+    if any(w not in GREETINGS for w in before):
+        return True, raw
     return True, raw[best.end():].lstrip(" ,.!?:;-—")
 
 
