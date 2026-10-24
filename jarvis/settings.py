@@ -47,6 +47,9 @@ class Settings:
     # Порт, на який Claude Code та інші програми надсилають події Джарвісу.
     event_port: int = 8765
 
+    # Де створювати нові проєкти ("відкрий Claude Code" -> "новий"). Порожньо — поруч із папкою Джарвіса.
+    projects_dir: str = ""
+
     # Власні назви: "як кажу" -> шлях. Напр. {"сайт": "C:/Projects/my-site"}.
     projects: dict[str, str] = field(default_factory=dict)
     apps: dict[str, str] = field(default_factory=dict)

@@ -17,9 +17,9 @@ from pathlib import Path
 from jarvis.core import runtime
 from jarvis.core.desktop import bring_to_front, find_window, paste_text, press
 from jarvis.core.registry import OPEN, command, tool
-from jarvis.core.text import is_no, is_yes, speakable, split_wake_word
+from jarvis.core.text import is_no, is_yes, normalize, speakable, split_wake_word, translit
 from jarvis.paths import DATA_DIR, ROOT
-from jarvis.skills.projects import find_project
+from jarvis.skills.projects import find_project, recent_projects
 
 WINDOW_TITLE = "Jarvis - Claude Code"
 CLAUDE = r"(?:клод|claude|клауд)\w* (?:код|code|кот)"
@@ -179,11 +179,65 @@ class DictationMode:
             runtime.say("Не вдалося знайти вікно Claude Code.")
 
 
-def start_session(project_name: str = "") -> str:
-    global _session
-    project = find_project(project_name)
+def _slug(text: str) -> str:
+    """Назва папки для нового проєкту: "мій сайт" -> "mii-sait"."""
+    return re.sub(r"[^a-z0-9]+", "-", translit(normalize(text))).strip("-")[:40]
+
+
+def _create_project() -> Path | None:
+    """Питає назву, пояснює, що створить, і після "так" створює порожню папку проєкту."""
+    runtime.say("Як назвати новий проєкт?")
+    raw = runtime.listen(10)
+    folder = _slug(raw or "")
+    if not folder:
+        runtime.say("Не почув назви.")
+        return None
+    settings = runtime.settings()
+    base = Path(settings.projects_dir) if settings.projects_dir else ROOT.parent
+    path = base / folder
+    if path.exists():
+        runtime.say(f"Папка {folder} вже є, відкриваю її.")
+        return path
+    if not runtime.confirm(f"Створю нову порожню папку {folder} у папці {base.name}. Створювати?"):
+        runtime.say("Добре, не створюю.")
+        return None
+    path.mkdir(parents=True)
+    return path
+
+
+def _ask_project() -> Path | None:
+    """Питає, в якому проєкті відкрити Claude Code: назва, "останній" або "новий"."""
+    recent = recent_projects()
+    hint = f" Останній — {recent[0].name}." if recent else ""
+    runtime.say(f"В якому проєкті? Назвіть його, скажіть «останній» або «новий».{hint}")
+    answer = normalize(runtime.listen(10) or "")
+    if not answer:
+        runtime.say("Не почув відповіді.")
+        return None
+    if re.search(r"\b(?:нов\w*|створ\w*)", answer):
+        return _create_project()
+    if re.fullmatch(r"(?:в |у )?(?:останн\w*|минул\w*|попередн\w*)(?: проєкт\w*| проект\w*)?", answer):
+        return recent[0] if recent else None
+    name = re.sub(r"^(?:в |у )?(?:проєкт\w*|проект\w*) ", "", answer)
+    project = find_project(name)
     if project is None:
-        return f"Не знайшов проєкт {project_name}." if project_name else "Не знайшов жодного проєкту."
+        runtime.say(f"Не знайшов проєкт {name}.")
+    return project
+
+
+def start_session(project_name: str = "", new: bool = False) -> str:
+    """Відкриває Claude Code. Без назви проєкту — питає, в якому (наявному чи новому)."""
+    global _session
+    if new:
+        project = _create_project()
+    elif project_name:
+        project = find_project(project_name)
+        if project is None:
+            return f"Не знайшов проєкт {project_name}."
+    else:
+        project = _ask_project()
+    if project is None:
+        return ""
     if _session and _session.project == project and _session.window():
         bring_to_front(_session.window())
         return "Claude Code уже відкритий."
@@ -209,7 +263,7 @@ def claude_code_task(task: str, project: str = "") -> str:
 
     Args:
         task: Детальний опис завдання для Claude Code.
-        project: Назва проєкту (папки). Порожньо — останній проєкт.
+        project: Назва проєкту (папки). Порожньо — Джарвіс спитає користувача.
     """
     reply = start_session(project)
     if _session is None or not _session.window():
@@ -221,6 +275,15 @@ def claude_code_task(task: str, project: str = "") -> str:
 @command(rf"{OPEN} {CLAUDE}(?: (?:в|у|для) (?:проєкт\w*|проект\w*) (?P<project>.+))?", rf"{CLAUDE}", priority=7)
 def _open_claude_code(project=""):
     return start_session(project)
+
+
+@command(
+    rf"{OPEN} {CLAUDE} (?:в|у|для) (?:новому|новий|нового) (?:проєкт\w*|проект\w*)",
+    r"(?:створи|зроби|почни)(?: мені)? новий (?:проєкт\w*|проект\w*)",
+    priority=7,
+)
+def _new_project():
+    return start_session(new=True)
 
 
 @command(

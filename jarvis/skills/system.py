@@ -82,15 +82,17 @@ def power(action: str) -> str:
 
 
 @tool
-def run_powershell(command: str) -> str:
+def run_powershell(command: str, explanation: str) -> str:
     """Виконати команду PowerShell. Використовуй, коли жоден інший інструмент не підходить
-    (знайти файл, дізнатися IP, створити папку тощо). Користувач підтверджує кожну команду голосом.
+    (дізнатися IP, створити папку тощо). Джарвіс озвучує пояснення і виконує лише після "так" користувача.
 
     Args:
         command: Команда PowerShell.
+        explanation: Коротко українською, що саме зробить команда і що зміниться на комп'ютері.
     """
     print(f"[PowerShell] {command}")
-    if not runtime.confirm("Виконати команду в PowerShell?"):
+    runtime.say(f"Хочу виконати команду: {explanation}")
+    if not runtime.confirm("Виконувати?"):
         return "Користувач скасував виконання команди."
     try:
         result = subprocess.run(

@@ -89,7 +89,7 @@ def open_app(name: str) -> str:
     if found:
         os.startfile(links[found])
         return f"Відкриваю {links[found].stem}."
-    return f"Не знайшов програму «{name}»."
+    return f"Не знайшов програму «{name}» на комп'ютері."
 
 
 def _windows_titled(name: str) -> list:
@@ -158,15 +158,23 @@ def focus_window(title: str) -> str:
     return "Готово."
 
 
-@command(rf"{OPEN} (?:програму )?(?P<name>.+)", priority=0)
+# Правило: "відкрий програму / додаток X" і "запусти X" — шукати на комп'ютері;
+# просто "відкрий X" — в інтернеті (окрім вбудованих програм Windows: блокнот, калькулятор...).
+APP_WORD = r"(?:програму|програма|додаток|застосунок|прогу|аплікацію)"
+
+
+@command(rf"{OPEN} {APP_WORD} (?P<name>.+)", r"запуст\w* (?:програму |додаток |застосунок )?(?P<name>.+)", priority=1)
+def _open_app(name):
+    return open_app(name)
+
+
+@command(r"відкри\w* (?P<name>.+)", priority=0)
 def _open(name):
-    reply = open_app(name)
-    if reply.startswith("Не знайшов"):
-        # Такої програми немає — мабуть, це сайт ("відкрий DuckDuckGo")
-        from jarvis.skills.web import open_site_named
-        raw = re.sub(r"^\s*(?:відкри|запуст)\w*\s*", "", runtime.command_text(), flags=re.I)
-        return open_site_named(raw or name)
-    return reply
+    if name in SYSTEM_APPS:
+        return open_app(name)
+    from jarvis.skills.web import open_site_named
+    raw = re.sub(r"^\s*відкри\w*\s*", "", runtime.command_text(), flags=re.I)
+    return open_site_named(raw or name)
 
 
 @command(rf"{CLOSE} (?:це |поточне |активне )?вікно|{CLOSE} це", priority=5)
