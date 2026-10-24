@@ -1,0 +1,10 @@
+SpeechRecognition>=3.17
+PyAudio>=0.2.14
+vosk>=0.3.45
+edge-tts>=7.3
+piper-tts>=1.8
+pygame>=2.6
+PyAutoGUI>=0.9.54
+pyperclip>=1.11
+psutil>=7.2
+keyboard>=0.13
