@@ -22,7 +22,7 @@ from jarvis.core.text import is_yes, normalize, split_wake_word
 from jarvis.settings import Settings
 from jarvis.voice.stt import Utterance
 
-NOT_UNDERSTOOD = "Цього я поки не вмію. Можу відкрити Claude Code — скажіть «Джарвіс, відкрий Claude Code»."
+NOT_UNDERSTOOD = "Вибачте, такої функції в мене ще немає."
 
 
 class Mode(Protocol):
