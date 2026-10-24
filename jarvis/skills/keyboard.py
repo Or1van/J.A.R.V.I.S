@@ -11,11 +11,51 @@ from jarvis.core.registry import NotHandled, command, tool
 MESSENGERS = {"telegram.exe", "viber.exe", "discord.exe", "whatsapp.exe", "signal.exe", "slack.exe"}
 
 SPOKEN_KEYS = {
-    "ентер": "enter", "інтер": "enter", "enter": "enter", "пробіл": "space", "таб": "tab",
-    "ескейп": "esc", "escape": "esc", "есц": "esc", "делит": "delete", "видалити": "delete",
-    "бекспейс": "backspace", "вгору": "up", "вниз": "down", "вліво": "left", "ліворуч": "left",
-    "вправо": "right", "праворуч": "right", "home": "home", "енд": "end",
+    "ентер": "enter", "інтер": "enter", "enter": "enter", "пробіл": "space", "space": "space",
+    "таб": "tab", "tab": "tab", "табуляція": "tab",
+    "ескейп": "esc", "escape": "esc", "esc": "esc", "есц": "esc", "ескейв": "esc",
+    "делит": "delete", "деліт": "delete", "delete": "delete", "видалити": "delete",
+    "бекспейс": "backspace", "backspace": "backspace", "вгору": "up", "вниз": "down", "вліво": "left",
+    "ліворуч": "left", "вправо": "right", "праворуч": "right", "home": "home", "хоум": "home", "енд": "end",
+    "end": "end", "пейдж даун": "pagedown", "пейдж ап": "pageup",
+    # модифікатори
+    "альт": "alt", "alt": "alt", "контрол": "ctrl", "контрл": "ctrl", "контроль": "ctrl", "ctrl": "ctrl",
+    "control": "ctrl", "цтрл": "ctrl", "шифт": "shift", "shift": "shift", "він": "win", "win": "win",
+    "віндовс": "win", "windows": "win", "вінда": "win", "пуск": "win",
 }
+# Як вимовляють латинські літери: "контрол сі" = Ctrl+C
+SPOKEN_LETTERS = {
+    "ей": "a", "бі": "b", "сі": "c", "ді": "d", "і": "e", "еф": "f", "джі": "g", "ейч": "h", "ай": "i",
+    "джей": "j", "кей": "k", "ел": "l", "ем": "m", "ен": "n", "оу": "o", "пі": "p", "кʼю": "q", "к'ю": "q",
+    "ар": "r", "ес": "s", "ті": "t", "ю": "u", "ві": "v", "дабл ю": "w", "ікс": "x", "уай": "y", "зет": "z",
+    # кирилиця, схожа на латиницю (так інколи пише розпізнавання): "альт ф4", "контрол с"
+    "а": "a", "с": "c", "в": "v", "х": "x", "з": "z", "т": "t", "ф": "f", "р": "r", "н": "n", "к": "k",
+    "д": "d", "е": "e", "о": "o", "м": "m", "л": "l", "п": "p",
+}
+
+
+def parse_keys(spoken: str) -> list[str] | None:
+    """"альт таб" -> ["alt", "tab"], "контрол шифт ескейп" -> [...], "alt f4" -> ["alt", "f4"]. None — не клавіші."""
+    text = re.sub(r"\s*(?:\bплюс\b|\+|-|\bі\b|\bта\b|\bй\b)\s*", " ", spoken.lower()).strip()
+    text = re.sub(r"\bф\s*(\d{1,2})\b", r"f\1", text)  # "ф 4" / "ф4" -> f4
+    words, keys, i = text.split(), [], 0
+    while i < len(words):
+        two = " ".join(words[i:i + 2])
+        if two in SPOKEN_KEYS or two in SPOKEN_LETTERS:
+            keys.append(SPOKEN_KEYS.get(two) or SPOKEN_LETTERS[two])
+            i += 2
+            continue
+        word = words[i]
+        if word in SPOKEN_KEYS:
+            keys.append(SPOKEN_KEYS[word])
+        elif re.fullmatch(r"f(?:[1-9]|1[0-2])|[a-z0-9]", word):
+            keys.append(word)
+        elif word in SPOKEN_LETTERS and keys:  # окрема літера має сенс лише після модифікатора
+            keys.append(SPOKEN_LETTERS[word])
+        else:
+            return None
+        i += 1
+    return keys or None
 SHORTCUTS = {
     r"(?:скопіюй|копіюй|копіювати)": ("ctrl", "c"),
     r"(?:встав|вставити|встав текст)": ("ctrl", "v"),
@@ -79,11 +119,16 @@ def _send():
     return "Відправив."
 
 
-@command(r"натисни (?P<key>.+)", priority=1)
+@command(
+    r"(?:натисни|натисніть|нажми|клацни|тисни) (?:клавіш[уі] |кнопку |комбінацію )?(?P<key>.+)",
+    r"(?P<key>(?:альт|alt|контрол\w*|ctrl|control|цтрл|шифт|shift|він|win|віндовс|windows)\b.+)",  # "альт таб"
+    priority=2,
+)
 def _press(key):
-    if key not in SPOKEN_KEYS:
+    keys = parse_keys(key)
+    if keys is None:
         raise NotHandled
-    return press_keys(SPOKEN_KEYS[key])
+    return press_keys("+".join(keys))
 
 
 def _register_shortcuts():

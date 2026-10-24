@@ -18,7 +18,7 @@ import winsound
 from typing import Protocol
 
 from jarvis.core import registry, runtime
-from jarvis.core.text import is_yes, normalize, split_wake_word
+from jarvis.core.text import is_no, is_yes, normalize, split_wake_word
 from jarvis.settings import Settings
 from jarvis.voice.stt import Utterance
 
@@ -63,8 +63,16 @@ class Assistant:
         return utterance.accurate() if utterance else None
 
     def confirm(self, question: str) -> bool:
+        """Питає "так чи ні". Незрозуміла відповідь — перепитує один раз; мовчання чи сумнів — це "ні"."""
         self.say(f"{question} Скажіть «так» або «ні».")
-        return is_yes(self.listen(8))
+        for attempt in range(2):
+            answer = self.listen(8)
+            if is_yes(answer):
+                return True
+            if answer is None or is_no(answer) or attempt == 1:
+                return False
+            self.say("Не зрозумів. Так чи ні?")
+        return False
 
     def command_text(self) -> str:
         if self._utterance is None:

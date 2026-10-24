@@ -71,13 +71,22 @@ class VoiceEars:
 
         self.queue: queue.Queue[sr.AudioData] = queue.Queue()
         self._muted = False
-        self._ignore_until = 0.0
-        self._stop = self.recognizer.listen_in_background(self.mic, self._on_audio, phrase_time_limit=30)
+        self._unmuted_at = 0.0  # коли Джарвіс востаннє замовк
+        self._stop =self.recognizer.listen_in_background(self.mic, self._on_audio, phrase_time_limit=30)
 
     def _on_audio(self, _recognizer, audio: sr.AudioData) -> None:
-        # Поки Джарвіс говорить, мікрофон чує його самого — такі фрази відкидаємо.
-        if self.active and not self._muted and time.time() >= self._ignore_until:
-            self.queue.put(audio)
+        """Мікрофон чує й самого Джарвіса. Фраза "закінчується" лише після паузи (pause_threshold),
+        тож відлуння його голосу приходить уже після того, як він замовк. Тому дивимось, коли фраза
+        ПОЧАЛАСЬ: якщо ще під час його мовлення — це його ж голос (напр. "...скажіть так або ні")."""
+        if not self.active or self._muted:
+            return
+        r = self.recognizer
+        duration = len(audio.frame_data) / (audio.sample_rate * audio.sample_width)
+        speech_end = time.time() - r.pause_threshold
+        speech_start = speech_end - (duration - 2 * r.non_speaking_duration)
+        if speech_start < self._unmuted_at - 0.2:
+            return
+        self.queue.put(audio)
 
     def set_active(self, on: bool) -> None:
         self.active = on
@@ -89,7 +98,7 @@ class VoiceEars:
         self._muted = True
 
     def unmute(self) -> None:
-        self._ignore_until = time.time() + 0.4
+        self._unmuted_at = time.time()
         self._muted = False
         while not self.queue.empty():
             self.queue.get_nowait()

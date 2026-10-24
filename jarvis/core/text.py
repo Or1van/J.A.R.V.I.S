@@ -7,8 +7,10 @@ _APOSTROPHES = str.maketrans({"’": "'", "ʼ": "'", "`": "'", "´": "'"})
 _FILLERS = re.compile(r"\b(?:будь ласка|будь-ласка|пожалуйста|мені|нам|ну|будь)\b")
 
 GREETINGS = {"привіт", "ей", "гей", "ок", "окей", "слухай", "hey", "ok", "а", "ну"}
-YES_WORDS = {"так", "да", "підтверджую", "звісно", "ага", "yes", "виконуй", "дозволяю", "давай", "відправляй"}
-NO_WORDS = {"ні", "нет", "не", "no", "скасуй", "відміна", "стоп"}
+YES_WORDS = {"так", "да", "підтверджую", "звісно", "звичайно", "авжеж", "ага", "yes", "виконуй", "дозволяю", "давай",
+             "відправляй", "добре", "гаразд", "окей", "ок", "ok", "згоден", "згодна", "можна", "створюй", "видаляй",
+             "відкривай", "роби", "вперед"}
+NO_WORDS = {"ні", "нє", "ніт", "нет", "не", "no", "скасуй", "скасувати", "відміна", "відміни", "стоп", "зупинись"}
 
 
 def normalize(text: str) -> str:
@@ -38,8 +40,9 @@ def split_wake_word(raw: str, wake_words: list[str]) -> tuple[bool, str]:
 
 
 def is_yes(text: str | None) -> bool:
+    """Згода: перше слово — "так"/"добре"/..., і ніде немає "ні"/"не" ("так або ні" — не згода)."""
     words = normalize(text or "").split()
-    return bool(words) and words[0] in YES_WORDS
+    return bool(words) and words[0] in YES_WORDS and not any(w in NO_WORDS for w in words)
 
 
 def is_no(text: str | None) -> bool:
