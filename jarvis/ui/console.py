@@ -2,6 +2,8 @@
 
 
 class ConsoleUI:
+    has_window = False
+
     def __init__(self):
         self._listening = None
 
@@ -9,6 +11,9 @@ class ConsoleUI:
         print(f"{who}: {text}")
 
     def show(self) -> None:
+        pass
+
+    def view(self, mode: str) -> None:
         pass
 
     def status(self, state: str) -> None:

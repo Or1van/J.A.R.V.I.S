@@ -57,7 +57,9 @@ class VoiceEars:
         self.language = language
         print("Завантажую офлайн-модель розпізнавання мовлення...")
         SetLogLevel(-1)
-        self.model = Model(str(VOSK_MODEL))
+        # Модель вантажиться ~3 с — тим часом калібруємо мікрофон
+        loader = threading.Thread(target=self._load_model)
+        loader.start()
         self.online_recognizer = sr.Recognizer()
         self.online_recognizer.operation_timeout = 6
 
@@ -68,11 +70,15 @@ class VoiceEars:
         print("Калібрую мікрофон під фоновий шум, секунду тиші...")
         with self.mic as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        loader.join()
 
         self.queue: queue.Queue[sr.AudioData] = queue.Queue()
         self._muted = False
         self._unmuted_at = 0.0  # коли Джарвіс востаннє замовк
         self._stop =self.recognizer.listen_in_background(self.mic, self._on_audio, phrase_time_limit=30)
+
+    def _load_model(self) -> None:
+        self.model = Model(str(VOSK_MODEL))
 
     def _on_audio(self, _recognizer, audio: sr.AudioData) -> None:
         """Мікрофон чує й самого Джарвіса. Фраза "закінчується" лише після паузи (pause_threshold),

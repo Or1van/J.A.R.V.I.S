@@ -31,13 +31,13 @@ class Mode(Protocol):
 
 
 class Assistant:
-    def __init__(self, settings: Settings, ears, mouth, brain, ui):
+    def __init__(self, settings: Settings, ears, mouth, brain, ui, events: queue.Queue | None = None):
         self.settings = settings
         self.ears = ears
         self.mouth = mouth
         self.brain = brain
         self.ui = ui
-        self.events: queue.Queue = queue.Queue()
+        self.events: queue.Queue = events if events is not None else queue.Queue()
         self.mode: Mode | None = None
         self.running = True
         self.listening = False

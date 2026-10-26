@@ -8,11 +8,15 @@
     python main.py --list-mics  показати мікрофони
 """
 import argparse
+import importlib
 import json
 import os
+import queue
 import sys
 import threading
+import traceback
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 from jarvis.paths import DATA_DIR, SETTINGS_FILE, VOSK_MODEL
 
@@ -55,59 +59,82 @@ def main() -> None:
         # Тепер точно лише одна копія — усе, що друкується, пишемо в журнал
         sys.stdout = sys.stderr = open(LOG_FILE, "w", encoding="utf-8", buffering=1)
 
-    from jarvis.brains.local import LocalBrain
-    from jarvis.core import registry
-    from jarvis.core.assistant import Assistant
     from jarvis.core.events import EventServer
-    from jarvis.ui.console import ConsoleUI
-    from jarvis.voice.stt import TextEars, VoiceEars
-    from jarvis.voice.tts import Mouth
 
-    print(f"Налаштування: {SETTINGS_FILE}")
-    registry.load_skills()
-
-    ears = TextEars() if args.text else VoiceEars(settings.mic_index, pause_seconds=settings.pause_seconds)
-    mouth = Mouth(settings, ears, muted=args.mute)
-    use_window = not (args.console or args.text)
-    if use_window:
-        from jarvis.ui.hud import Hud
-
-        # Вікно створюється до асистента, але йому потрібен асистент — підставимо після створення.
-        ui_proxy = _LateUI()
-        assistant = Assistant(settings, ears, mouth, LocalBrain(settings), ui_proxy)
-        ui_proxy.target = Hud(assistant, settings.hotkey)
-    else:
-        assistant = Assistant(settings, ears, mouth, LocalBrain(settings), ConsoleUI())
-
+    events: queue.Queue = queue.Queue()
     server = None
     try:
-        server = EventServer(settings.event_port, assistant.events)
+        server = EventServer(settings.event_port, events)
         server.start()
     except OSError as e:
         print(f"[сервер подій не запустився на порту {settings.event_port}: {e}]")
 
-    from jarvis.core.desktop import start_tracking
-    start_tracking()
-
     if not args.text:
         import keyboard
-        keyboard.add_hotkey(settings.hotkey, lambda: assistant.events.put(("jarvis.activate", {})))
+        keyboard.add_hotkey(settings.hotkey, lambda: events.put(("jarvis.activate", {})))
         print(f"Гаряча клавіша: {settings.hotkey}")
+
+    print(f"Налаштування: {SETTINGS_FILE}")
+    use_window = not (args.console or args.text)
+    if use_window:
+        # Вікно — одразу, ще до завантаження моделей; асистент під'єднається, коли буде готовий
+        from jarvis.ui.hud import Hud
+        ui = Hud(settings, events)
+    else:
+        from jarvis.ui.console import ConsoleUI
+        ui = ConsoleUI()
+
+    started: dict = {}
+
+    def boot_and_run() -> None:
+        try:
+            assistant = started["assistant"] = _build(settings, args, ui, events)
+            if use_window:
+                ui.attach(assistant)
+            assistant.run()
+        except Exception:
+            traceback.print_exc()
+            ui.log("Джарвіс", "Не вдалося запуститися. Подробиці — у журналі.")
+        finally:
+            if "assistant" in started:
+                started["assistant"].stop()
 
     try:
         if use_window:
-            threading.Thread(target=_run_safely, args=(assistant,), daemon=True).start()
-            ui_proxy.target.run()
+            threading.Thread(target=boot_and_run, daemon=True).start()
+            ui.run()
         else:
-            assistant.run()
+            boot_and_run()
     except KeyboardInterrupt:
         pass
     finally:
-        assistant.stop()
+        if "assistant" in started:
+            started["assistant"].stop()
+            started["assistant"].ears.close()
         if server:
             server.stop()
-        ears.close()
     print("Джарвіс завершив роботу.")
+
+
+def _build(settings, args, ui, events):
+    """Створює асистента. Найдовші частини запуску — офлайн-модель розпізнавання мовлення, бібліотеки
+    голосу й навички — вантажаться паралельно, а не одна за одною."""
+    from jarvis.core import registry
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        skills = pool.submit(registry.load_skills)
+        tts = pool.submit(importlib.import_module, "jarvis.voice.tts")
+        from jarvis.voice.stt import TextEars, VoiceEars
+        ears = TextEars() if args.text else VoiceEars(settings.mic_index, pause_seconds=settings.pause_seconds)
+        skills.result()
+        mouth = tts.result().Mouth(settings, ears, muted=args.mute)
+
+    from jarvis.brains.local import LocalBrain
+    from jarvis.core.assistant import Assistant
+    from jarvis.core.desktop import start_tracking
+
+    start_tracking()
+    return Assistant(settings, ears, mouth, LocalBrain(settings), ui, events)
 
 
 def _already_running(port: int) -> bool:
@@ -123,34 +150,6 @@ def _already_running(port: int) -> bool:
         return True
     except OSError:
         return False
-
-
-class _LateUI:
-    """Передає виклики інтерфейсу вікну, яке створюється трохи пізніше за асистента."""
-    target = None
-
-    def log(self, who: str, text: str) -> None:
-        print(f"{who}: {text}")
-        if self.target:
-            self.target.log(who, text)
-
-    def status(self, state: str) -> None:
-        if self.target:
-            self.target.status(state)
-
-    def show(self) -> None:
-        if self.target:
-            self.target.show()
-
-
-def _run_safely(assistant) -> None:
-    try:
-        assistant.run()
-    except Exception:
-        import traceback
-        traceback.print_exc()
-    finally:
-        assistant.stop()
 
 
 if __name__ == "__main__":

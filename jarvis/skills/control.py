@@ -49,6 +49,30 @@ def _help():
     return HELP
 
 
+# «Розгорни/згорни вікно» — це про вікна користувача, а «розгорнись/згорнись» — про самого Джарвіса.
+@command(r"розгорнись(?: на весь екран)?|розгорни себе|покажи себе на весь екран|режим (?:повного екрана|hud)", priority=8)
+def _view_full():
+    return _view("full")
+
+
+@command(r"згорнись|сховайся|зменшись|міні режим|режим міні|маленький режим", priority=8)
+def _view_mini():
+    return _view("mini")
+
+
+@command(r"(?:звичайний|компактний|нормальний) режим|зроби звичайне вікно", priority=8)
+def _view_normal():
+    return _view("normal")
+
+
+def _view(mode: str) -> str | None:
+    ui = runtime.assistant().ui
+    if not ui.has_window:
+        return "Зараз я працюю без вікна."
+    ui.view(mode)
+    return None
+
+
 @command(r"повтори|що ти сказав", priority=8)
 def _repeat():
     return runtime.assistant().last_said or "Я ще нічого не казав."
