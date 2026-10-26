@@ -6,6 +6,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # щоб знайти пакет jarvis
+
 from jarvis.paths import MODELS_DIR, PIPER_MODEL, VOSK_MODEL
 
 VOSK_URL = f"https://alphacephei.com/vosk/models/{VOSK_MODEL.name}.zip"

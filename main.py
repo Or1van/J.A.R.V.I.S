@@ -46,7 +46,7 @@ def main() -> None:
         return
 
     if not args.text and not VOSK_MODEL.exists():
-        print("Немає офлайн-моделі розпізнавання мовлення. Запустіть: python setup_models.py")
+        print("Немає офлайн-моделі розпізнавання мовлення. Запустіть: python scripts/setup_models.py")
         return
 
     from jarvis.settings import Settings

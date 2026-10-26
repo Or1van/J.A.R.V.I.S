@@ -2,14 +2,14 @@
 
 Windows сама запускає програму за гарячою клавішею ярлика, якщо ярлик лежить у меню Пуск.
 Джарвіс запускається без вікна консолі; журнал — у %LOCALAPPDATA%\\Jarvis\\jarvis.log.
-Використання: python setup_shortcut.py [гаряча клавіша, напр. "Ctrl+Alt+J"]
+Використання: python scripts/setup_shortcut.py [гаряча клавіша, напр. "Ctrl+Alt+J"]
 """
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # папка проєкту, де лежить main.py
 SHORTCUT = Path(os.environ["APPDATA"]) / r"Microsoft\Windows\Start Menu\Programs\Jarvis.lnk"
 
 
