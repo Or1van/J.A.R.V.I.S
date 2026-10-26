@@ -204,11 +204,13 @@ class Assistant:
         self.brain.ask(raw, on_text=self.say)
 
     def _try_local(self, text: str, utterance=None) -> bool:
-        found = registry.match(text)
+        found = registry.match(text, utterance.text if utterance is not None else None)
         if found is None:
             return False
-        cmd, args = found
-        self._utterance, self._command_raw = utterance, text
+        cmd, args, understood = found
+        if understood != text:  # виправлені одруківки: навички мають бачити виправлену фразу
+            utterance = None
+        self._utterance, self._command_raw = utterance, understood
         try:
             reply = cmd.handler(**args)
         except registry.NotHandled:

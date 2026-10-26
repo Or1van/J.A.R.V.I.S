@@ -139,6 +139,74 @@ def best_match(query: str, candidates: list[str], cutoff: float = 0.6) -> str | 
     return best if best_score >= cutoff else None
 
 
+# Русизми й суржик, що проскакують у командах: "открой браузер" = "відкрий браузер".
+SYNONYMS = {
+    "открой": "відкрий", "откройте": "відкрий", "закрой": "закрий", "закройте": "закрий", "найди": "знайди",
+    "поищи": "пошукай", "включи": "увімкни", "выключи": "вимкни", "сделай": "зроби", "громче": "гучніше",
+    "тише": "тихіше", "громкость": "гучність", "сколько": "скільки", "время": "часу",
+    "новости": "новини", "заметку": "нотатку", "заметки": "нотатки", "компьютер": "комп'ютер",
+    "приложение": "додаток", "программу": "програму", "страницу": "сторінку", "следующая": "наступна",
+    "следующую": "наступну", "предыдущая": "попередня", "перезагрузи": "перезавантаж",
+    "сверни": "згорни", "разверни": "розгорни", "скриншот": "скріншот",
+}
+# Текст, набраний в англійській розкладці замість української: "dslrhbq" -> "відкрий".
+_LAYOUT = str.maketrans(
+    "qwertyuiop[]asdfghjkl;'zxcvbnm,.`",
+    "йцукенгшщзхїфівапролджєячсмитьбю'",
+)
+
+
+def fix_layout(text: str) -> str:
+    return text.lower().translate(_LAYOUT)
+
+
+def edit_distance(a: str, b: str, limit: int = 2) -> int:
+    """Кількість одруківок між словами (пропущена, зайва, замінена чи переставлена літера).
+    Якщо більше за limit — повертає limit + 1, не дораховуючи."""
+    if abs(len(a) - len(b)) > limit:
+        return limit + 1
+    prev2, prev = None, list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
+            if prev2 is not None and i > 1 and j > 1 and ca == b[j - 2] and a[i - 2] == cb:
+                cur[j] = min(cur[j], prev2[j - 2] + 1)
+        if min(cur) > limit:
+            return limit + 1
+        prev2, prev = prev, cur
+    return min(prev[-1], limit + 1)
+
+
+def correct_words(text: str, words: set[str], stems: set[str]) -> str:
+    """Виправляє одруківки й суржик за словником команд: "відкрй браузер" -> "відкрий браузер".
+    words — цілі слова з команд, stems — основи ("відкри" з "відкри\\w*"). Знайомі слова не чіпає."""
+    out = []
+    for word in text.split():
+        word = SYNONYMS.get(word, word)
+        if (len(word) < 4 or not word.replace("'", "").isalpha() or word in words
+                or any(word.startswith(s) for s in stems if len(s) >= 3)):
+            out.append(word)
+            continue
+        limit = 1 if len(word) <= 6 else 2
+        best, best_d = word, limit + 1
+        for w in words:
+            if len(w) >= 3:
+                d = edit_distance(word, w, limit)
+                if d < best_d:
+                    best, best_d = w, d
+        for s in stems:
+            if len(s) >= 4:
+                stem_limit = min(limit, 1 if len(s) <= 6 else 2)
+                for k in (len(s) - 1, len(s), len(s) + 1):
+                    if k <= len(word):
+                        d = edit_distance(word[:k], s, stem_limit)
+                        if d <= stem_limit and d < best_d:
+                            best, best_d = s + word[k:], d
+        out.append(best)
+    return " ".join(out)
+
+
 def speakable(text: str, max_sentences: int | None = 2, max_chars: int = 400) -> str:
     """Готує markdown-текст до озвучення: прибирає код, посилання, символи розмітки."""
     t = re.sub(r"```.*?```", " (код) ", text, flags=re.S)

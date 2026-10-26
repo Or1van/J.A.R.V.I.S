@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
+from jarvis.core.text import correct_words, fix_layout, normalize
+
 # Шаблони дієслів, які часто повторюються в командах.
 OPEN = r"(?:відкри\w*|запуст\w*)"
 CLOSE = r"(?:закри\w*)"
@@ -70,13 +72,92 @@ def tool(fn):
     return fn
 
 
-def match(text: str) -> tuple[Command, dict] | None:
+def match(text: str, raw: str | None = None) -> tuple[Command, dict, str] | None:
+    """Шукає команду для нормалізованої фрази. Якщо точного збігу немає (або спрацювала лише загальна
+    команда на кшталт "відкрий X"), пробує виправити одруківки, суржик і неправильну розкладку клавіатури
+    (для розкладки потрібен raw — фраза до нормалізації, бо "," і "." там — це літери "б" і "ю").
+    Повертає (команда, аргументи, фраза, яку зрештою зрозуміли)."""
+    found = _match_exact(text)
+    if found and found[0].priority >= _SPECIFIC:
+        return *found, text
+    words, stems = _vocabulary()
+    candidates = [correct_words(text, words, stems)]
+    raw = raw or text
+    if re.search(r"[a-z]", raw.lower()) and not re.search(r"[а-яіїєґ]", raw.lower()):
+        candidates.append(correct_words(normalize(fix_layout(raw)), words, stems))
+    for i, fixed in enumerate(candidates):
+        if fixed == text:
+            continue
+        better = _match_exact(fixed)
+        if better and (found is None or better[0].priority > found[0].priority):
+            # Назви й тексти всередині команди ("запиши нотатку купити хліб") не виправляємо —
+            # лише слова самої команди.
+            original = text if i == 0 else normalize(fix_layout(raw))
+            kept = _keep_slots(fixed, original, better[0])
+            if kept is not None:
+                fixed, better = kept
+            print(f"(зрозумів як: {fixed})")
+            return *better, fixed
+    return (*found, text) if found else None
+
+
+def _keep_slots(fixed: str, original: str, cmd: Command) -> tuple[str, tuple[Command, dict]] | None:
+    """Повертає в іменовані частини команди слова з оригінальної фрази, якщо команда від цього не зміниться."""
+    fixed_words, original_words = fixed.split(), original.split()
+    if len(fixed_words) != len(original_words):
+        return None
+    for pattern in cmd.patterns:
+        m = pattern.fullmatch(fixed)
+        if not m:
+            continue
+        slots = [m.span(g) for g in m.groupdict() if m.group(g) is not None]
+        result, pos = [], 0
+        for fw, ow in zip(fixed_words, original_words):
+            start = fixed.index(fw, pos)
+            pos = start + len(fw)
+            result.append(ow if any(a <= start < b for a, b in slots) else fw)
+        restored = " ".join(result)
+        again = _match_exact(restored)
+        if again and again[0] is cmd:
+            return restored, again
+        return None
+    return None
+
+
+# Команди з таким пріоритетом і вище — конкретні; нижче — загальні ("відкрий X", "закрий X", "напиши X").
+_SPECIFIC = 2
+_vocab_cache: tuple[int, set[str], set[str]] = (-1, set(), set())
+
+
+def _match_exact(text: str) -> tuple[Command, dict] | None:
     for cmd in COMMANDS:
         for pattern in cmd.patterns:
             m = pattern.fullmatch(text)
             if m:
                 return cmd, {k: v for k, v in m.groupdict().items() if v is not None}
     return None
+
+
+def _vocabulary() -> tuple[set[str], set[str]]:
+    """Слова з шаблонів усіх команд: цілі слова й основи (те, що стоїть перед \\w* чи [ая])."""
+    global _vocab_cache
+    if _vocab_cache[0] == len(COMMANDS):
+        return _vocab_cache[1], _vocab_cache[2]
+    words, stems = set(), set()
+    for cmd in COMMANDS:
+        for pattern in cmd.patterns:
+            src = re.sub(r"\(\?P<\w+>", "(", pattern.pattern)
+            src = re.sub(r"\\w[*+]", "\0", src)
+            src = re.sub(r"\\.", " ", src)
+            for word, after in re.findall(r"([^\W\d_]+(?:'[^\W\d_]+)*)([\0\[(?]?)", src):
+                word = word.lower()
+                if after == "?":  # "вікна?" — і "вікна", і "вікн"
+                    words.add(word)
+                    stems.add(word[:-1])
+                else:
+                    (stems if after else words).add(word)
+    _vocab_cache = (len(COMMANDS), words, stems)
+    return words, stems
 
 
 def call_tool(name: str, args: dict) -> str:
